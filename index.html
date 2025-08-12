@@ -56,14 +56,20 @@
             <div class="card p-8">
                 <h2 class="text-2xl font-bold text-center mb-6">Daftar Akun Baru</h2>
                 <div id="register-error" class="text-red-500 text-sm mb-4 text-center hidden"></div>
-                <input type="text" id="register-name" placeholder="Nama Lengkap" class="form-input" required>
-                <input type="text" id="register-kelas" placeholder="Kelas (contoh: 7A)" class="form-input" required>
-                <select id="register-squad" class="form-input" required>
-                    <option value="" disabled selected>Pilih Squad</option>
-                    <option value="Squad 1">Squad 1</option>
-                    <option value="Squad 2">Squad 2</option>
-                    <option value="Konten Kreator">Konten Kreator</option>
+                <select id="register-role" class="form-input" required>
+                    <option value="student" selected>Daftar sebagai Siswa</option>
+                    <option value="mentor">Daftar sebagai Mentor</option>
                 </select>
+                <input type="text" id="register-name" placeholder="Nama Lengkap" class="form-input" required>
+                <div id="student-fields">
+                    <input type="text" id="register-kelas" placeholder="Kelas (contoh: 7A)" class="form-input" required>
+                    <select id="register-squad" class="form-input" required>
+                        <option value="" disabled selected>Pilih Squad</option>
+                        <option value="Squad 1">Squad 1</option>
+                        <option value="Squad 2">Squad 2</option>
+                        <option value="Konten Kreator">Konten Kreator</option>
+                    </select>
+                </div>
                 <input type="email" id="register-email" placeholder="Email" class="form-input" required>
                 <input type="password" id="register-password" placeholder="Buat Password (min. 6 karakter)" class="form-input" required>
                 <button id="btn-register" class="btn-primary w-full mt-2">Daftar</button>
@@ -184,13 +190,11 @@
           apiKey: "AIzaSyAHPOwuVxjKKy8j9pKkYgH-l3aI-8FoPsw",
           authDomain: "mentari-ilmu-5a0cc.firebaseapp.com",
           projectId: "mentari-ilmu-5a0cc",
-          storageBucket: "mentari-ilmu-5a0cc.firebasestorage.app",
+          storageBucket: "mentari-ilmu-5a0cc.appspot.com",
           messagingSenderId: "480772432575",
-          appId: "1:480772432575:web:52fbebd1b05fb1d23c9c0a",
-            measurementId: "G-9Z3X1F5E6H"
-          };
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
+          appId: "1:480772432575:web:52fbebd1b05fb1d23c9c0a"
+        };
+        
         let app, auth, db, storage;
         let currentUserData = null;
         let geminiApiKey = null;
@@ -440,16 +444,24 @@
                 });
                 document.getElementById('btn-register').addEventListener('click', async () => {
                     const name = document.getElementById('register-name').value;
+                    const role = document.getElementById('register-role').value;
                     const kelas = document.getElementById('register-kelas').value;
                     const squad = document.getElementById('register-squad').value;
                     const email = document.getElementById('register-email').value;
                     const password = document.getElementById('register-password').value;
                     const errorDiv = document.getElementById('register-error');
-                    if (!name || !kelas || !squad || !email || !password) {
+                    
+                    let requiredFields = [name, email, password, role];
+                    if (role === 'student') {
+                        requiredFields.push(kelas, squad);
+                    }
+
+                    if (requiredFields.some(f => !f)) {
                         errorDiv.textContent = "Semua kolom harus diisi.";
                         errorDiv.classList.remove('hidden');
                         return;
                     }
+
                     if (password.length < 6) {
                         errorDiv.textContent = "Password minimal harus 6 karakter.";
                         errorDiv.classList.remove('hidden');
@@ -459,17 +471,20 @@
                     loader.classList.remove('hidden');
                     try {
                         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                        await setDoc(doc(db, "users", userCredential.user.uid), {
+                        const userData = {
                             name: name,
                             email: email,
-                            kelas: kelas,
-                            squad: squad,
-                            role: "student",
+                            role: role,
                             points: 0,
                             completedChallenges: [],
                             avatar: `https://placehold.co/40x40/3b82f6/ffffff?text=${name.charAt(0).toUpperCase()}`,
                             createdAt: serverTimestamp()
-                        });
+                        };
+                        if (role === 'student') {
+                            userData.kelas = kelas;
+                            userData.squad = squad;
+                        }
+                        await setDoc(doc(db, "users", userCredential.user.uid), userData);
                     } catch (error) {
                         console.error("Registration failed:", error.code, error.message);
                         if (error.code === 'auth/email-already-in-use') {
@@ -483,6 +498,14 @@
                     }
                 });
                 document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+                document.getElementById('register-role').addEventListener('change', (e) => {
+                    const studentFields = document.getElementById('student-fields');
+                    if (e.target.value === 'student') {
+                        studentFields.style.display = 'block';
+                    } else {
+                        studentFields.style.display = 'none';
+                    }
+                });
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
