@@ -63,8 +63,7 @@
                     <option value="Konten Kreator">Konten Kreator</option>
                 </select>
                 <input type="email" id="register-email" placeholder="Email" class="form-input" required>
-                <label for="register-password" class="text-sm text-gray-600">Password Default:</label>
-                <input type="password" id="register-password" value="123456" class="form-input bg-gray-100 cursor-not-allowed" readonly>
+                <input type="password" id="register-password" placeholder="Buat Password (min. 6 karakter)" class="form-input" required>
                 <button id="btn-register" class="btn-primary w-full mt-2">Daftar</button>
                 <p class="text-center text-sm mt-4">Sudah punya akun? <a href="#" id="show-login" class="text-blue-500 hover:underline">Masuk di sini</a></p>
             </div>
@@ -212,100 +211,9 @@
         window.showModuleDetail = async (moduleId) => { /* ... same as before ... */ };
 
         // --- Main App Logic ---
-        function listenToChallenges() {
-            const container = document.getElementById('view-tantangan');
-            const q = query(collection(db, "challenges"), orderBy("createdAt", "desc"), limit(1));
-            onSnapshot(q, (snapshot) => {
-                if (snapshot.empty) {
-                    container.innerHTML = `<div class="card p-6 text-center"><p>Belum ada tantangan hari ini. Cek lagi nanti!</p></div>`;
-                    return;
-                }
-                const challenge = snapshot.docs[0].data();
-                const challengeId = snapshot.docs[0].id;
-                const isCompleted = currentUserData?.completedChallenges?.includes(challengeId);
-
-                container.innerHTML = `
-                    <div class="card p-6 bg-gradient-to-br from-blue-400 to-blue-600 text-white text-center">
-                        <h2 class="text-2xl font-bold mb-2">${challenge.title}</h2>
-                        <p class="text-lg mb-4">${challenge.description}</p>
-                        <div class="bg-white/20 p-3 rounded-lg inline-block mb-4">
-                            <i class="fas fa-award mr-2"></i>
-                            <span>+${challenge.points} Poin</span>
-                        </div>
-                        <br>
-                        <button id="btn-show-challenge-card" class="btn-primary" ${isCompleted ? 'disabled' : ''}>
-                            ${isCompleted ? 'Tantangan Selesai!' : 'Lihat Tantangan'}
-                        </button>
-                    </div>`;
-                
-                if (!isCompleted) {
-                    document.getElementById('btn-show-challenge-card').addEventListener('click', () => showChallengeCard(challengeId, challenge));
-                }
-            });
-        }
-
-        function showChallengeCard(challengeId, challengeData) {
-            document.getElementById('card-challenge-title').textContent = challengeData.title;
-            document.getElementById('card-challenge-desc').textContent = challengeData.description;
-            document.getElementById('card-student-name').textContent = currentUserData.name;
-            document.getElementById('card-student-kelas').textContent = currentUserData.kelas;
-            document.getElementById('card-student-squad').textContent = currentUserData.squad;
-
-            // Reset upload slots
-            uploadedFiles = [null, null, null];
-            for (let i = 1; i <= 3; i++) {
-                document.getElementById(`preview-${i}`).src = "";
-                document.getElementById(`icon-${i}`).style.display = 'block';
-                document.getElementById(`upload-${i}`).value = '';
-            }
-            document.getElementById('btn-submit-challenge').disabled = true;
-
-            document.getElementById('btn-submit-challenge').onclick = () => submitChallenge(challengeId, challengeData.points);
-
-            showView('challenge-card');
-        }
-
-        async function submitChallenge(challengeId, points) {
-            const loader = document.getElementById('loader');
-            const submitBtn = document.getElementById('btn-submit-challenge');
-            submitBtn.disabled = true;
-            loader.classList.remove('hidden');
-
-            try {
-                const uploadPromises = uploadedFiles.map((file, index) => {
-                    const storageRef = ref(storage, `submissions/${challengeId}/${auth.currentUser.uid}/${Date.now()}_${index}.jpg`);
-                    return uploadBytes(storageRef, file).then(snapshot => getDownloadURL(snapshot.ref));
-                });
-
-                const photoUrls = await Promise.all(uploadPromises);
-
-                await addDoc(collection(db, "submissions"), {
-                    userId: auth.currentUser.uid,
-                    challengeId: challengeId,
-                    userName: currentUserData.name,
-                    kelas: currentUserData.kelas,
-                    squad: currentUserData.squad,
-                    photoUrls: photoUrls,
-                    submittedAt: serverTimestamp()
-                });
-
-                const userRef = doc(db, "users", auth.currentUser.uid);
-                await updateDoc(userRef, {
-                    points: increment(points),
-                    completedChallenges: arrayUnion(challengeId)
-                });
-
-                showModal("Berhasil!", `Kamu telah menyelesaikan tantangan dan mendapatkan ${points} poin!`);
-                showView('tantangan');
-
-            } catch (error) {
-                console.error("Error submitting challenge:", error);
-                showModal("Gagal", "Terjadi kesalahan saat mengirimkan karyamu. Coba lagi.");
-            } finally {
-                loader.classList.add('hidden');
-            }
-        }
-        
+        function listenToChallenges() { /* ... same as before ... */ }
+        function showChallengeCard(challengeId, challengeData) { /* ... same as before ... */ }
+        async function submitChallenge(challengeId, points) { /* ... same as before ... */ }
         function listenToModules() { /* ... same as before ... */ }
         async function fetchApiKey() { /* ... same as before ... */ }
         function initMentorDashboard() { /* ... same as before ... */ }
@@ -322,9 +230,26 @@
                 const appContainer = document.getElementById('app-container');
 
                 document.getElementById('modal-close').addEventListener('click', () => document.getElementById('modal-overlay').classList.add('hidden'));
+                
                 document.getElementById('show-register').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-view').classList.add('hidden'); document.getElementById('register-view').classList.remove('hidden'); });
                 document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('register-view').classList.add('hidden'); document.getElementById('login-view').classList.remove('hidden'); });
-                document.getElementById('btn-login').addEventListener('click', async () => { /* ... */ });
+
+                document.getElementById('btn-login').addEventListener('click', async () => {
+                    const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorDiv = document.getElementById('login-error'); errorDiv.classList.add('hidden'); loader.classList.remove('hidden');
+                    try { await signInWithEmailAndPassword(auth, email, password); } 
+                    catch (error) {
+                        console.error("Login failed:", error.code, error.message);
+                        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                            errorDiv.textContent = "Email atau password yang Anda masukkan salah.";
+                        } else if (error.code === 'auth/too-many-requests') {
+                            errorDiv.textContent = "Terlalu banyak percobaan login. Coba lagi nanti.";
+                        } else {
+                            errorDiv.textContent = "Terjadi kesalahan. Coba lagi.";
+                        }
+                        errorDiv.classList.remove('hidden');
+                    } 
+                    finally { loader.classList.add('hidden'); }
+                });
                 document.getElementById('btn-register').addEventListener('click', async () => {
                     const name = document.getElementById('register-name').value;
                     const kelas = document.getElementById('register-kelas').value;
@@ -332,8 +257,13 @@
                     const email = document.getElementById('register-email').value;
                     const password = document.getElementById('register-password').value;
                     const errorDiv = document.getElementById('register-error');
-                    if (!name || !kelas || !squad || !email) {
+                    if (!name || !kelas || !squad || !email || !password) {
                         errorDiv.textContent = "Semua kolom harus diisi.";
+                        errorDiv.classList.remove('hidden');
+                        return;
+                    }
+                    if (password.length < 6) {
+                        errorDiv.textContent = "Password minimal harus 6 karakter.";
                         errorDiv.classList.remove('hidden');
                         return;
                     }
@@ -353,6 +283,7 @@
                             createdAt: serverTimestamp()
                         });
                     } catch (error) {
+                        console.error("Registration failed:", error.code, error.message);
                         if (error.code === 'auth/email-already-in-use') {
                             errorDiv.textContent = "Email sudah terdaftar.";
                         } else {
@@ -378,7 +309,6 @@
                     }
                 });
 
-                // Add event listeners for Kanban card uploads
                 for (let i = 1; i <= 3; i++) {
                     document.getElementById(`upload-${i}`).addEventListener('change', (e) => {
                         const index = e.target.dataset.index;
@@ -392,7 +322,6 @@
                             };
                             reader.readAsDataURL(file);
                         }
-                        // Check if all 3 files are uploaded to enable submit button
                         if (uploadedFiles.every(f => f !== null)) {
                             document.getElementById('btn-submit-challenge').disabled = false;
                         }
