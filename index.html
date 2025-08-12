@@ -381,28 +381,31 @@
             const userRef = doc(db, "users", user.uid);
             const unsubUser = onSnapshot(userRef, (doc) => {
                 if (doc.exists()) {
+                    const isFirstLoad = !currentUserData;
                     currentUserData = doc.data();
                     document.getElementById('user-name').textContent = currentUserData.name;
                     document.getElementById('user-avatar').src = currentUserData.avatar;
                     document.getElementById('user-points').textContent = `${currentUserData.points} Poin`;
                     const level = Math.floor(currentUserData.points / 100) + 1;
                     document.getElementById('user-level').textContent = `Lv ${level}`;
+                    
                     if (currentUserData.role === 'mentor') {
                         document.getElementById('nav-mentor-dashboard').classList.remove('hidden');
                         initMentorDashboard();
                     } else {
                         document.getElementById('nav-mentor-dashboard').classList.add('hidden');
                     }
+
+                    if (isFirstLoad) {
+                        listenToChallenges();
+                        listenToModules();
+                        listenToGallery();
+                        listenToLeaderboard();
+                        document.getElementById('upload-input').addEventListener('change', handleUpload);
+                    }
                 }
             });
             unsubscribeListeners.push(unsubUser);
-            
-            // Call listeners once after user is confirmed
-            listenToChallenges();
-            listenToModules();
-            listenToGallery();
-            listenToLeaderboard();
-            document.getElementById('upload-input').addEventListener('change', handleUpload);
         }
 
         function cleanupListeners() {
