@@ -217,7 +217,35 @@
         function listenToModules() { /* ... same as before ... */ }
         async function fetchApiKey() { /* ... same as before ... */ }
         function initMentorDashboard() { /* ... same as before ... */ }
-        async function setupUser(user) { /* ... same as before ... */ }
+        
+        async function setupUser(user) {
+            // Show the profile container immediately to avoid UI flicker
+            document.getElementById('user-profile').classList.remove('hidden');
+
+            const userRef = doc(db, "users", user.uid);
+            onSnapshot(userRef, (doc) => {
+                if (doc.exists()) {
+                    currentUserData = doc.data();
+                    document.getElementById('user-name').textContent = currentUserData.name;
+                    document.getElementById('user-avatar').src = currentUserData.avatar;
+                    document.getElementById('user-points').textContent = `${currentUserData.points} Poin`;
+                    const level = Math.floor(currentUserData.points / 100) + 1;
+                    document.getElementById('user-level').textContent = `Lv ${level}`;
+                    
+                    if (currentUserData.role === 'mentor') {
+                        document.getElementById('nav-mentor-dashboard').classList.remove('hidden');
+                        initMentorDashboard();
+                    } else {
+                        document.getElementById('nav-mentor-dashboard').classList.add('hidden');
+                    }
+                    listenToChallenges();
+                }
+            });
+            listenToModules();
+            listenToGallery();
+            listenToLeaderboard();
+            document.getElementById('upload-input').addEventListener('change', handleUpload);
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             try {
