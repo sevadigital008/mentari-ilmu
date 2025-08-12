@@ -194,6 +194,7 @@
         let currentUserData = null;
         let geminiApiKey = null;
         let uploadedFiles = [null, null, null];
+        let mentorDashboardInitialized = false;
 
         // --- UI & Helper Functions ---
         const showModal = (title, message) => {
@@ -218,7 +219,154 @@
         async function submitChallenge(challengeId, points) { /* ... same as before ... */ }
         function listenToModules() { /* ... same as before ... */ }
         async function fetchApiKey() { /* ... same as before ... */ }
-        function initMentorDashboard() { /* ... same as before ... */ }
+        
+        function initMentorDashboard() {
+            if (mentorDashboardInitialized) return;
+            mentorDashboardInitialized = true;
+
+            fetchApiKey();
+
+            // Challenge Management
+            const createChallengeBtn = document.getElementById('btn-create-challenge');
+            const challengeList = document.getElementById('challenge-list');
+            const aiGenerateChallengeBtn = document.getElementById('btn-ai-generate-challenge');
+
+            aiGenerateChallengeBtn.addEventListener('click', async () => {
+                if (!geminiApiKey) {
+                    showModal("API Key Diperlukan", "Harap simpan Gemini API Key Anda di menu Pengaturan API terlebih dahulu.");
+                    return;
+                }
+                const topic = document.getElementById('challenge-title').value;
+                if (!topic) {
+                    showModal("Input Kosong", "Silakan ketik judul tantangan terlebih dahulu.");
+                    return;
+                }
+                aiGenerateChallengeBtn.disabled = true;
+                aiGenerateChallengeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>AI sedang berpikir...';
+                try {
+                    const prompt = `Buatkan ide tantangan fotografi untuk aplikasi MentariPlay dengan topik: "${topic}". Tantangan harus seru dan cocok untuk siswa SMP. Berikan respons dalam format JSON dengan struktur: { "title": "Judul Tantangan yang Menarik", "description": "Deskripsi singkat tantangan.", "points": 15 }`;
+                    let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = { 
+                        contents: chatHistory,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: { type: "OBJECT", properties: { "title": { "type": "STRING" }, "description": { "type": "STRING" }, "points": { "type": "NUMBER" } } }
+                        }
+                    };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) { throw new Error(`API request failed with status ${response.status}`); }
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0) {
+                        const aiResponse = JSON.parse(result.candidates[0].content.parts[0].text);
+                        document.getElementById('challenge-title').value = aiResponse.title;
+                        document.getElementById('challenge-desc').value = aiResponse.description;
+                        document.getElementById('challenge-points').value = aiResponse.points;
+                    } else { throw new Error("Respons AI tidak valid."); }
+                } catch (error) {
+                    console.error("Error generating challenge with AI:", error);
+                    showModal("AI Error", "Gagal membuat tantangan dengan AI. Coba lagi nanti.");
+                } finally {
+                    aiGenerateChallengeBtn.disabled = false;
+                    aiGenerateChallengeBtn.innerHTML = '<i class="fas fa-magic-sparkles mr-2"></i>Buat Deskripsi & Poin dengan AI';
+                }
+            });
+
+            createChallengeBtn.addEventListener('click', async () => {
+                const title = document.getElementById('challenge-title').value; const desc = document.getElementById('challenge-desc').value; const points = parseInt(document.getElementById('challenge-points').value);
+                if (!title || !desc || !points) { showModal("Error", "Semua field tantangan harus diisi."); return; }
+                await addDoc(collection(db, "challenges"), { title, description: desc, points, createdAt: serverTimestamp() });
+                document.getElementById('challenge-title').value = ''; document.getElementById('challenge-desc').value = ''; document.getElementById('challenge-points').value = '';
+                showModal("Sukses", "Tantangan baru telah dipublikasikan!");
+            });
+            onSnapshot(query(collection(db, "challenges"), orderBy("createdAt", "desc")), (snapshot) => {
+                challengeList.innerHTML = ''; if (snapshot.empty) { challengeList.innerHTML = '<li>Belum ada tantangan.</li>'; return; }
+                snapshot.forEach(doc => { const challenge = doc.data(); const li = document.createElement('li'); li.className = 'flex justify-between items-center bg-gray-100 p-2 rounded'; li.innerHTML = `<span>${challenge.title}</span> <button data-id="${doc.id}" class="btn-danger text-xs py-1 px-2 rounded">Hapus</button>`; challengeList.appendChild(li); });
+            });
+            challengeList.addEventListener('click', async (e) => {
+                if (e.target.tagName === 'BUTTON' && e.target.dataset.id) { await deleteDoc(doc(db, "challenges", e.target.dataset.id)); showModal("Sukses", "Tantangan telah dihapus."); }
+            });
+
+            // Module Management
+            const createModuleBtn = document.getElementById('btn-create-module');
+            const moduleList = document.getElementById('module-list');
+            const aiGenerateModuleBtn = document.getElementById('btn-ai-generate-module');
+            aiGenerateModuleBtn.addEventListener('click', async () => {
+                if (!geminiApiKey) {
+                    showModal("API Key Diperlukan", "Harap simpan Gemini API Key Anda di menu Pengaturan API terlebih dahulu.");
+                    return;
+                }
+                const topic = document.getElementById('module-title').value;
+                if (!topic) {
+                    showModal("Input Kosong", "Silakan ketik topik modul yang ingin dibuat.");
+                    return;
+                }
+                aiGenerateModuleBtn.disabled = true;
+                aiGenerateModuleBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>AI sedang berpikir...';
+                try {
+                    const prompt = `Buatkan materi pembelajaran fotografi untuk aplikasi MentariPlay dengan topik: "${topic}". Materi harus mudah dipahami oleh siswa SMP. Berikan respons dalam format JSON dengan struktur: { "title": "Judul Modul yang Menarik", "content": "Isi materi dalam beberapa paragraf, gunakan karakter newline (\\n) untuk paragraf baru.", "imageUrlQuery": "satu atau dua kata kunci pencarian gambar yang relevan dengan topik" }`;
+                    
+                    let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = { 
+                        contents: chatHistory,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: { type: "OBJECT", properties: { "title": { "type": "STRING" }, "content": { "type": "STRING" }, "imageUrlQuery": { "type": "STRING" } } }
+                        }
+                    };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) { throw new Error(`API request failed with status ${response.status}`); }
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0) {
+                        const aiResponse = JSON.parse(result.candidates[0].content.parts[0].text);
+                        document.getElementById('module-title').value = aiResponse.title;
+                        document.getElementById('module-content').value = aiResponse.content;
+                        document.getElementById('module-image-url').value = `https://placehold.co/800x400/3b82f6/ffffff?text=${encodeURIComponent(aiResponse.imageUrlQuery)}`;
+                    } else { throw new Error("Respons AI tidak valid."); }
+                } catch (error) {
+                    console.error("Error generating with AI:", error);
+                    showModal("AI Error", "Gagal membuat konten dengan AI. Coba lagi nanti.");
+                } finally {
+                    aiGenerateModuleBtn.disabled = false;
+                    aiGenerateModuleBtn.innerHTML = '<i class="fas fa-magic-sparkles mr-2"></i>Buat Konten Modul dengan AI';
+                }
+            });
+            createModuleBtn.addEventListener('click', async () => {
+                const title = document.getElementById('module-title').value; const imageUrl = document.getElementById('module-image-url').value; const content = document.getElementById('module-content').value;
+                if (!title || !imageUrl || !content) { showModal("Error", "Semua field modul harus diisi."); return; }
+                await addDoc(collection(db, "modules"), { title, imageUrl, content, createdAt: serverTimestamp() });
+                document.getElementById('module-title').value = ''; document.getElementById('module-image-url').value = ''; document.getElementById('module-content').value = '';
+                showModal("Sukses", "Modul baru telah dipublikasikan!");
+            });
+            onSnapshot(query(collection(db, "modules"), orderBy("createdAt", "desc")), (snapshot) => {
+                moduleList.innerHTML = ''; if (snapshot.empty) { moduleList.innerHTML = '<li>Belum ada modul.</li>'; return; }
+                snapshot.forEach(doc => { const module = doc.data(); const li = document.createElement('li'); li.className = 'flex justify-between items-center bg-gray-100 p-2 rounded'; li.innerHTML = `<span>${module.title}</span> <button data-id="${doc.id}" class="btn-danger text-xs py-1 px-2 rounded">Hapus</button>`; moduleList.appendChild(li); });
+            });
+            moduleList.addEventListener('click', async (e) => {
+                if (e.target.tagName === 'BUTTON' && e.target.dataset.id) { await deleteDoc(doc(db, "modules", e.target.dataset.id)); showModal("Sukses", "Modul telah dihapus."); }
+            });
+
+            // API Key Save Button
+            document.getElementById('btn-save-api-key').addEventListener('click', async () => {
+                const key = document.getElementById('gemini-api-key').value;
+                if (!key) {
+                    showModal("Input Kosong", "API Key tidak boleh kosong.");
+                    return;
+                }
+                const docRef = doc(db, "config", "apiKeys");
+                try {
+                    await setDoc(docRef, { gemini: key });
+                    geminiApiKey = key; // Update local variable
+                    showModal("Sukses", "Kunci API berhasil disimpan.");
+                } catch (error) {
+                    console.error("Error saving API key:", error);
+                    showModal("Gagal", "Gagal menyimpan Kunci API. Pastikan Aturan Keamanan Firebase sudah benar.");
+                }
+            });
+        }
         
         async function setupUser(user) {
             document.getElementById('user-profile').classList.remove('hidden');
@@ -333,6 +481,7 @@
                         appContainer.classList.add('hidden');
                         authContainer.classList.remove('hidden');
                         loader.classList.add('hidden');
+                        mentorDashboardInitialized = false; // Reset flag on logout
                     }
                 });
 
