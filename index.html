@@ -149,7 +149,7 @@
                             <h3 class="text-xl font-bold mb-4">Buat Tantangan Baru</h3>
                             <label for="challenge-title" class="font-semibold">Judul Tantangan</label>
                             <input type="text" id="challenge-title" placeholder="Ketik ide tantangan di sini..." class="form-input">
-                            <button id="btn-ai-generate-challenge" class="btn-ai w-full mb-4"><i class="fas fa-magic-sparkles mr-2"></i>Buat Deskripsi & Poin dengan AI</button>
+                            <button id="btn-ai-generate-challenge" class="btn-ai w-full mb-4"><i class="fas fa-magic mr-2"></i>Buat Deskripsi & Poin dengan AI</button>
                             <hr class="my-4">
                             <label for="challenge-desc" class="font-semibold">Deskripsi</label>
                             <textarea id="challenge-desc" placeholder="Deskripsi tantangan..." class="form-input" rows="3"></textarea>
@@ -164,7 +164,7 @@
                             <h3 class="text-xl font-bold mb-4">Kelola Modul</h3>
                             <label for="module-title" class="font-semibold">Topik Modul</label>
                             <input type="text" id="module-title" placeholder="Ketik topik modul di sini..." class="form-input">
-                            <button id="btn-ai-generate-module" class="btn-ai w-full mb-4"><i class="fas fa-magic-sparkles mr-2"></i>Buat Konten Modul dengan AI</button>
+                            <button id="btn-ai-generate-module" class="btn-ai w-full mb-4"><i class="fas fa-magic mr-2"></i>Buat Konten Modul dengan AI</button>
                             <hr class="my-4">
                             <label for="module-image-url" class="font-semibold">URL Gambar</label>
                             <input type="text" id="module-image-url" placeholder="URL Gambar Ilustrasi" class="form-input">
@@ -217,14 +217,14 @@
             if(navItem) navItem.classList.add('active');
         };
         
-        window.showModuleDetail = async (moduleId) => { /* ... same as before ... */ };
+        window.showModuleDetail = async (moduleId) => { console.log('showModuleDetail called with', moduleId); };
 
         // --- Main App Logic ---
-        function listenToChallenges() { /* ... same as before ... */ }
-        function showChallengeCard(challengeId, challengeData) { /* ... same as before ... */ }
-        async function submitChallenge(challengeId, points) { /* ... same as before ... */ }
-        function listenToModules() { /* ... same as before ... */ }
-        async function fetchApiKey() { /* ... same as before ... */ }
+        function listenToChallenges() { console.log('listenToChallenges initialized'); }
+        function showChallengeCard(challengeId, challengeData) { console.log('showChallengeCard', challengeId, challengeData); }
+        async function submitChallenge(challengeId, points) { console.log('submitChallenge', challengeId, points); }
+        function listenToModules() { console.log('listenToModules initialized'); }
+        async function fetchApiKey() { console.log('fetchApiKey called'); }
         
         function initMentorDashboard() {
             if (mentorDashboardInitialized) return;
@@ -265,7 +265,7 @@
                     const result = await response.json();
                     
                     if (result.candidates && result.candidates.length > 0) {
-                        const aiResponse = JSON.parse(result.candidates[0].content.parts[0].text);
+                        let aiResponse; try { aiResponse = JSON.parse(result.candidates[0].content.parts[0].text); } catch(e) { throw new Error('Format JSON AI tidak valid'); }
                         document.getElementById('challenge-title').value = aiResponse.title;
                         document.getElementById('challenge-desc').value = aiResponse.description;
                         document.getElementById('challenge-points').value = aiResponse.points;
@@ -275,7 +275,7 @@
                     showModal("AI Error", "Gagal membuat tantangan dengan AI. Coba lagi nanti.");
                 } finally {
                     aiGenerateChallengeBtn.disabled = false;
-                    aiGenerateChallengeBtn.innerHTML = '<i class="fas fa-magic-sparkles mr-2"></i>Buat Deskripsi & Poin dengan AI';
+                    aiGenerateChallengeBtn.innerHTML = '<i class="fas fa-magic mr-2"></i>Buat Deskripsi & Poin dengan AI';
                 }
             });
 
@@ -328,7 +328,7 @@
                     const result = await response.json();
                     
                     if (result.candidates && result.candidates.length > 0) {
-                        const aiResponse = JSON.parse(result.candidates[0].content.parts[0].text);
+                        let aiResponse; try { aiResponse = JSON.parse(result.candidates[0].content.parts[0].text); } catch(e) { throw new Error('Format JSON AI tidak valid'); }
                         document.getElementById('module-title').value = aiResponse.title;
                         document.getElementById('module-content').value = aiResponse.content;
                         document.getElementById('module-image-url').value = `https://placehold.co/800x400/3b82f6/ffffff?text=${encodeURIComponent(aiResponse.imageUrlQuery)}`;
@@ -338,7 +338,7 @@
                     showModal("AI Error", "Gagal membuat konten dengan AI. Coba lagi nanti.");
                 } finally {
                     aiGenerateModuleBtn.disabled = false;
-                    aiGenerateModuleBtn.innerHTML = '<i class="fas fa-magic-sparkles mr-2"></i>Buat Konten Modul dengan AI';
+                    aiGenerateModuleBtn.innerHTML = '<i class="fas fa-magic mr-2"></i>Buat Konten Modul dengan AI';
                 }
             });
             createModuleBtn.addEventListener('click', async () => {
@@ -515,6 +515,7 @@
                         authContainer.classList.add('hidden');
                         appContainer.classList.remove('hidden');
                         loader.classList.remove('hidden');
+                        cleanupListeners();
                         setupUser(user).then(() => loader.classList.add('hidden'));
                     } else {
                         appContainer.classList.add('hidden');
@@ -537,6 +538,13 @@
                             };
                             reader.readAsDataURL(file);
                         }
+
+if (!file) {
+    uploadedFiles[index - 1] = null;
+    document.getElementById(`preview-${index}`).src = '';
+    document.getElementById(`icon-${index}`).style.display = 'block';
+}
+
                         if (uploadedFiles.every(f => f !== null)) {
                             document.getElementById('btn-submit-challenge').disabled = false;
                         }
