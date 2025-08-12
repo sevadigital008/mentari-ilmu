@@ -181,15 +181,16 @@
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
         const firebaseConfig = {
-          apiKey: "AIzaSyBO0DA6GUSH4PH_arnbBI0_UxEF8eqmhuc",
-          authDomain: "smp-mentari-ilmu.firebaseapp.com",
-          projectId: "smp-mentari-ilmu",
-          storageBucket: "smp-mentari-ilmu.appspot.com",
-          messagingSenderId: "746214936737",
-          appId: "1:746214936737:web:d6b1d337cd741c3440e0e0",
-          measurementId: "G-VDFESX5XWS"
-        };
-        
+          apiKey: "AIzaSyAHPOwuVxjKKy8j9pKkYgH-l3aI-8FoPsw",
+          authDomain: "mentari-ilmu-5a0cc.firebaseapp.com",
+          projectId: "mentari-ilmu-5a0cc",
+          storageBucket: "mentari-ilmu-5a0cc.firebasestorage.app",
+          messagingSenderId: "480772432575",
+          appId: "1:480772432575:web:52fbebd1b05fb1d23c9c0a",
+            measurementId: "G-9Z3X1F5E6H"
+          };
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
         let app, auth, db, storage;
         let currentUserData = null;
         let geminiApiKey = null;
