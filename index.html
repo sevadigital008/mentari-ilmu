@@ -31,6 +31,8 @@
         .upload-slot { border: 2px dashed #d1d5db; border-radius: 0.5rem; width: 100px; height: 100px; cursor: pointer; }
         .upload-slot:hover { border-color: #3b82f6; }
         .upload-slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.5rem; }
+        .emoji-reaction { cursor: pointer; font-size: 1.25rem; transition: transform 0.2s; }
+        .emoji-reaction:hover { transform: scale(1.2); }
     </style>
 </head>
 <body class="text-gray-800">
@@ -219,9 +221,7 @@
         function initMentorDashboard() { /* ... same as before ... */ }
         
         async function setupUser(user) {
-            // Show the profile container immediately to avoid UI flicker
             document.getElementById('user-profile').classList.remove('hidden');
-
             const userRef = doc(db, "users", user.uid);
             onSnapshot(userRef, (doc) => {
                 if (doc.exists()) {
@@ -231,7 +231,6 @@
                     document.getElementById('user-points').textContent = `${currentUserData.points} Poin`;
                     const level = Math.floor(currentUserData.points / 100) + 1;
                     document.getElementById('user-level').textContent = `Lv ${level}`;
-                    
                     if (currentUserData.role === 'mentor') {
                         document.getElementById('nav-mentor-dashboard').classList.remove('hidden');
                         initMentorDashboard();
@@ -362,10 +361,114 @@
             }
         });
 
-        // --- Placeholder functions ---
-        function listenToGallery() { /* ... */ }
-        function listenToLeaderboard() { /* ... */ }
-        async function handleUpload(event) { /* ... */ }
+        // --- Re-implemented functions ---
+        async function handleUpload(event) {
+            const file = event.target.files[0];
+            if (!file || !auth.currentUser) return;
+            const uploadLabel = document.getElementById('upload-label');
+            const loader = document.getElementById('loader');
+            uploadLabel.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Mengunggah...';
+            uploadLabel.style.cursor = 'not-allowed';
+            loader.classList.remove('hidden');
+            try {
+                const storageRef = ref(storage, `gallery/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+                await uploadBytes(storageRef, file);
+                const downloadURL = await getDownloadURL(storageRef);
+                await addDoc(collection(db, "gallery"), {
+                    url: downloadURL,
+                    userId: auth.currentUser.uid,
+                    userName: currentUserData.name,
+                    createdAt: serverTimestamp(),
+                    reactions: { '🔥': 0, '😍': 0, '👍': 0 }
+                });
+                const userRef = doc(db, "users", auth.currentUser.uid);
+                await updateDoc(userRef, { points: increment(5) });
+            } catch (error) {
+                console.error("Error uploading file:", error);
+                showModal("Gagal Unggah", "Gagal mengunggah file.");
+            } finally {
+                uploadLabel.innerHTML = '<i class="fas fa-upload mr-2"></i> Unggah Karya';
+                uploadLabel.style.cursor = 'pointer';
+                event.target.value = '';
+                loader.classList.add('hidden');
+            }
+        }
+
+        function listenToGallery() {
+            const galleryGrid = document.getElementById('gallery-grid');
+            const q = query(collection(db, "gallery"), orderBy("createdAt", "desc"));
+            window.react = async (docId, emoji) => {
+                if (!auth.currentUser) return;
+                const docRef = doc(db, "gallery", docId);
+                const fieldToUpdate = `reactions.${emoji}`;
+                await updateDoc(docRef, { [fieldToUpdate]: increment(1) });
+            };
+            onSnapshot(q, (querySnapshot) => {
+                galleryGrid.innerHTML = '';
+                if (querySnapshot.empty) {
+                    galleryGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Belum ada karya yang diunggah.</p>';
+                    return;
+                }
+                querySnapshot.forEach((doc) => {
+                    const item = doc.data();
+                    const reactions = item.reactions || { '🔥': 0, '😍': 0, '👍': 0 };
+                    const card = document.createElement('div');
+                    card.className = 'card overflow-hidden';
+                    card.innerHTML = `
+                        <img src="${item.url}" alt="Karya dari ${item.userName}" class="w-full h-48 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/600x400/cccccc/ffffff?text=Error';">
+                        <div class="p-4">
+                            <p class="text-sm font-semibold">Oleh: ${item.userName || 'Anonim'}</p>
+                             <div class="flex space-x-4 mt-2">
+                                <span class="emoji-reaction" onclick="react('${doc.id}', '🔥')">🔥 ${reactions['🔥']}</span>
+                                <span class="emoji-reaction" onclick="react('${doc.id}', '😍')">😍 ${reactions['😍']}</span>
+                                <span class="emoji-reaction" onclick="react('${doc.id}', '👍')">👍 ${reactions['👍']}</span>
+                            </div>
+                        </div>
+                    `;
+                    galleryGrid.appendChild(card);
+                });
+            }, (error) => {
+                console.error("Error listening to gallery:", error);
+                galleryGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Gagal memuat galeri.</p>';
+            });
+        }
+
+        function listenToLeaderboard() {
+            const list = document.getElementById('leaderboard-list');
+            const q = query(collection(db, "users"), orderBy("points", "desc"), limit(10));
+            onSnapshot(q, (querySnapshot) => {
+                list.innerHTML = ''; 
+                if (querySnapshot.empty) {
+                    list.innerHTML = '<p class="text-center text-gray-500">Papan skor masih kosong.</p>';
+                    return;
+                }
+                let rank = 1;
+                querySnapshot.forEach((doc) => {
+                    const user = doc.data();
+                    const item = document.createElement('li');
+                    item.className = 'flex items-center justify-between p-3 rounded-lg hover:bg-gray-100';
+                    item.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="font-bold text-lg w-8">${rank++}</span>
+                            <img src="${user.avatar}" alt="${user.name}" class="w-10 h-10 rounded-full mr-4">
+                            <span class="font-semibold">${user.name}</span>
+                        </div>
+                        <span class="font-bold text-blue-500">${user.points} Poin</span>
+                    `;
+                    list.appendChild(item);
+                });
+            }, (error) => {
+                console.error("Error listening to leaderboard:", error);
+                if (error.code === 'permission-denied') {
+                    list.innerHTML = `<div class="text-center text-red-500 p-4 bg-red-50 rounded-lg">
+                        <p class="font-bold">Gagal Memuat Papan Skor</p>
+                        <p class="text-sm">Ini terjadi karena aturan keamanan database. Untuk memperbaikinya, minta mentor untuk memperbarui Aturan Keamanan di Firebase Firestore.</p>
+                    </div>`;
+                } else {
+                    list.innerHTML = '<p class="text-center text-red-500">Gagal memuat papan skor.</p>';
+                }
+            });
+        }
     </script>
 </body>
 </html>
